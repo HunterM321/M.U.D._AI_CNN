@@ -13,7 +13,7 @@ from cv_bridge import CvBridge, CvBridgeError
 class dashcam:
 
   def __init__(self):
-    vid_out_path = '/home/fizzer/dashcam.avi'
+    vid_out_path = '/home/fizzer/dashcam_full.avi'
     self.vid = cv2.VideoWriter_fourcc(*'MJPG')
     self.out = cv2.VideoWriter(vid_out_path, self.vid, 10.0, (1280, 720))
 
