@@ -9,6 +9,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import clue_board_CV as cb
+import tensorflow as tf
 
 ## A class that subscribes to the image stream and publishes to the velocity stream
 class clue_board_detector:
@@ -16,6 +17,18 @@ class clue_board_detector:
   def __init__(self):
 
     self.bridge = CvBridge()
+    self.model = None
+
+    try:
+        self.model = tf.keras.models.load_model('text_recognition.h5')
+    except Exception as e:
+        rospy.logerr("Failed to load model: %s", str(e))
+        return  # Optionally return or handle the error as appropriate
+
+    if self.model is None:
+        rospy.logerr("Model could not be loaded")
+        return  # Optionally return or handle the error as appropriate
+
     # Subscribes to the camera topic
     self.image_sub = rospy.Subscriber('/R1/pi_camera/image_raw', Image, self.callback)
     # Publishes to the clue board debugging topic
@@ -27,7 +40,7 @@ class clue_board_detector:
   def callback(self,data):
     try:
       cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-      clue_board = cb.identify_clue(cv_image)
+      clue_board = cb.identify_clue(cv_image, self.model)
       # print(clue_board)
       # Convert the processed image back to a ROS image message
       ros_image = self.bridge.cv2_to_imgmsg(clue_board, "bgr8")

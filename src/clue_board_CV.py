@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import math
+import tensorflow as tf
 
 def find_corners(corners):
         # Initialize corners with the first point in the list
@@ -51,7 +52,64 @@ def is_rectangle(tl, tr, br, bl):
     ]
     return all(60 <= a <= 120 for a in angles)  # Allowing some tolerance
 
-def identify_clue(image):
+def split_texts(img):
+    letter_width = 45
+    letter_height = 80
+
+    # Define the regions
+    pts_0 = np.array([[250, 40], [250, 40 + letter_height], [250 + 6 * letter_width, 40 + letter_height], [250 + 6 * letter_width, 40]], np.int32)
+    pts_1 = np.array([[30, 260], [30, 260 + letter_height], [30 + 12 * letter_width, 260 + letter_height], [30 + 12 * letter_width, 260]], np.int32)
+
+    # Split pts_0 into 6 images
+    sub_images_pts_0 = []
+    for i in range(6):
+        x_start = pts_0[0][0] + i * letter_width
+        y_start = pts_0[0][1]
+        sub_img = img[y_start:y_start + letter_height, x_start:x_start + letter_width]
+        sub_images_pts_0.append(sub_img)
+
+    # Split pts_1 into 12 images
+    sub_images_pts_1 = []
+    for i in range(12):
+        x_start = pts_1[0][0] + i * letter_width
+        y_start = pts_1[0][1]
+        sub_img = img[y_start:y_start + letter_height, x_start:x_start + letter_width]
+        sub_images_pts_1.append(sub_img)
+
+    return sub_images_pts_0, sub_images_pts_1
+
+def int2char(n):
+    if 0 <= n <= 25:
+        return chr(ord('A') + n)
+    elif 26 <= n <= 35:
+        return chr(ord('0') + n - 26)
+    elif n == 36:
+        return ' '
+    else:
+        raise ValueError('Input should be between 0 and 36 inclusive')
+
+def predict_each(images, model):
+    predicted_string = ''
+    for img in images:
+        # Prepare the image for model
+        img = np.expand_dims(img, axis=0)
+
+        # Predict the letter
+        prediction = model.predict(img)
+        predicted_letter = int2char(np.argmax(prediction[0]))
+
+        # Append the predicted letter to the string
+        predicted_string += predicted_letter
+    
+    return predicted_string
+
+def predict_text(image, model):
+    sub_imgs_0, sub_imgs_1 = split_texts(image)
+    key = predict_each(sub_imgs_0, model)
+    value = predict_each(sub_imgs_1, model)
+    return key + ', ' + value
+
+def identify_clue(image, model):
     # Return this black image if no clues found
     height = 400
     width = 600
@@ -206,5 +264,6 @@ def identify_clue(image):
     # Apply the perspective transformation
     result = cv2.warpPerspective(warped_image, M, (width, height))
 
-    print('Find a good image!\n')
+    predicted_txt = predict_text(result, model)
+    print(predicted_txt + '\n')
     return result
