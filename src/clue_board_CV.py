@@ -49,7 +49,7 @@ def is_rectangle(tl, tr, br, bl):
         angle(br, bl, tl),
         angle(bl, tl, tr)
     ]
-    return all(80 <= a <= 100 for a in angles)  # Allowing some tolerance
+    return all(60 <= a <= 120 for a in angles)  # Allowing some tolerance
 
 def identify_clue(image):
     # Return this black image if no clues found
@@ -80,6 +80,7 @@ def identify_clue(image):
         cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     
     if len(contours) == 0:
+        print('No Contours detected\n')
         return black_image
 
     image_copy = image.copy()
@@ -90,10 +91,11 @@ def identify_clue(image):
             board_cnt = cnt
             # cv2.drawContours(image_copy, board_cnt, -1, (0, 255, 0), 3)
     if len(board_cnt) <= 500:
+        print('Contour not big enough\n')
         return black_image
 
     ## Find edges in contour
-    epsilon = 0.1 * cv2.arcLength(board_cnt, True)
+    epsilon = 0.05 * cv2.arcLength(board_cnt, True)
     approx_corners = cv2.approxPolyDP(board_cnt, epsilon, True)
 
     # Check if we have four corners
@@ -117,6 +119,7 @@ def identify_clue(image):
 
         # sorted_points now contains the corners in the order: top-left, top-right, bottom-right, bottom-left
     else:
+        print('Contour is not a rectangle\n')
         return black_image
 
     top_left = sorted_points[0]
@@ -140,7 +143,7 @@ def identify_clue(image):
     block_size = 5
     aperture_size = 5
     k = 0.08
-    harris_corners = cv2.cornerHarris(warped_image[:, :, 0], block_size, aperture_size, k)
+    harris_corners = cv2.cornerHarris(warped_image[:, :, 2], block_size, aperture_size, k)
 
     # Dilate the corner points to enhance them
     harris_corners = cv2.dilate(harris_corners, None)
@@ -160,7 +163,12 @@ def identify_clue(image):
                 if cond_0 and cond_1:
                     corners.append((x, y))
     if (len(corners) < 4):
+        print('Not enough corners in harris corners\n')
         return black_image
+    
+    # for x, y in corners:
+    #     cv2.circle(warped_image, (x, y), 10, (255, 0, 0), -1)
+    # return warped_image
 
     top_left, top_right, bottom_right, bottom_left = find_corners(corners)
 
@@ -179,11 +187,12 @@ def identify_clue(image):
 
     #     return cond_0 and cond_1 and cond_2
 
-    if (is_rectangle(top_left, top_right, bottom_right, bottom_left) == False):
-        return black_image
+    # if (is_rectangle(top_left, top_right, bottom_right, bottom_left) == False):
+    #     print('Clue board is not a rectangle\n')
+    #     return black_image
 
     for x, y in top_left, top_right, bottom_right, bottom_left:
-        print((x, y))
+        # print((x, y))
         cv2.circle(warped_image, (x, y), 10, (255, 0, 0), -1)
     
     ## Second perspective transform
@@ -195,6 +204,7 @@ def identify_clue(image):
     M = cv2.getPerspectiveTransform(src_pts, dst_pts)
 
     # Apply the perspective transformation
-    warped_image = cv2.warpPerspective(warped_image, M, (width, height))
+    result = cv2.warpPerspective(warped_image, M, (width, height))
 
-    return warped_image
+    print('Find a good image!\n')
+    return result

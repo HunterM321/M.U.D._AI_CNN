@@ -28,7 +28,7 @@ class clue_board_detector:
     try:
       cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
       clue_board = cb.identify_clue(cv_image)
-      print(clue_board)
+      # print(clue_board)
       # Convert the processed image back to a ROS image message
       ros_image = self.bridge.cv2_to_imgmsg(clue_board, "bgr8")
       self.clue_board_debug.publish(ros_image)
