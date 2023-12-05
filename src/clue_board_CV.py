@@ -107,7 +107,7 @@ def predict_text(image, model):
     sub_imgs_0, sub_imgs_1 = split_texts(image)
     key = predict_each(sub_imgs_0, model)
     value = predict_each(sub_imgs_1, model)
-    return key + ', ' + value
+    return key, value
 
 def identify_clue(image, model):
     # Return this black image if no clues found
@@ -138,8 +138,8 @@ def identify_clue(image, model):
         cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     
     if len(contours) == 0:
-        print('No Contours detected\n')
-        return black_image
+        # print('No Contours detected\n')
+        return black_image, None, None
 
     image_copy = image.copy()
 
@@ -149,8 +149,8 @@ def identify_clue(image, model):
             board_cnt = cnt
             # cv2.drawContours(image_copy, board_cnt, -1, (0, 255, 0), 3)
     if len(board_cnt) <= 500:
-        print('Contour not big enough\n')
-        return black_image
+        # print('Contour not big enough\n')
+        return black_image, None, None
 
     ## Find edges in contour
     epsilon = 0.05 * cv2.arcLength(board_cnt, True)
@@ -177,13 +177,19 @@ def identify_clue(image, model):
 
         # sorted_points now contains the corners in the order: top-left, top-right, bottom-right, bottom-left
     else:
-        print('Contour is not a rectangle\n')
-        return black_image
+        # print('Contour is not a rectangle\n')
+        return black_image, None, None
 
     top_left = sorted_points[0]
     top_right = sorted_points[1]
     bottom_right = sorted_points[2]
     bottom_left = sorted_points[3]
+
+    # Subtract 10 pixels in both x and y directions to avoid unwanted corners
+    # top_left = (top_left[0] + 5, top_left[1] + 5)
+    # top_right = (top_right[0] - 5, top_right[1] + 5)
+    # bottom_right = (bottom_right[0] - 5, bottom_right[1] - 5)
+    # bottom_left = (bottom_left[0] + 5, bottom_left[1] - 5)
 
     ## First perspective transform
     src_pts = np.float32([top_left, top_right, bottom_right, bottom_left])
@@ -221,8 +227,8 @@ def identify_clue(image, model):
                 if cond_0 and cond_1:
                     corners.append((x, y))
     if (len(corners) < 4):
-        print('Not enough corners in harris corners\n')
-        return black_image
+        # print('Not enough corners in harris corners\n')
+        return black_image, None, None
     
     # for x, y in corners:
     #     cv2.circle(warped_image, (x, y), 10, (255, 0, 0), -1)
@@ -264,6 +270,5 @@ def identify_clue(image, model):
     # Apply the perspective transformation
     result = cv2.warpPerspective(warped_image, M, (width, height))
 
-    predicted_txt = predict_text(result, model)
-    print(predicted_txt + '\n')
-    return result
+    predicted_key, predicted_val = predict_text(result, model)
+    return result, predicted_key, predicted_val

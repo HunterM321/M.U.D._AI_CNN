@@ -10,6 +10,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import clue_board_CV as cb
 import tensorflow as tf
+import Levenshtein
 
 ## A class that subscribes to the image stream and publishes to the velocity stream
 class clue_board_detector:
@@ -33,14 +34,91 @@ class clue_board_detector:
     self.image_sub = rospy.Subscriber('/R1/pi_camera/image_raw', Image, self.callback)
     # Publishes to the clue board debugging topic
     self.clue_board_debug = rospy.Publisher('/R1/pi_camera/clue_board_debug', Image, queue_size=5)
+    # Publishes to the score tracker topic
+    self.score_tracker = rospy.Publisher('/score_tracker', String, queue_size=5)
+
+    self.key2id = {
+       'SIZE':    '1',
+       'VICTIM':  '2',
+       'CRIME':   '3',
+       'TIME':    '4',
+       'PLACE':   '5',
+       'MOTIVE':  '6',
+       'WEAPON':  '7',
+       'BANDIT':  '8'
+    }
+
+    # Previous clue type
+    self.prev_clue_type = None
+    # List of clues associated with the current clue type
+    self.list_curr_clue = []
+    # History of clue types published
+    self.published_clue_type_history = []
 
     # self.rate = rospy.Rate(2)
 
+  def find_closest_key(self, predicted_key):
+    """Find the closest key in self.key2id to the predicted_key."""
+    closest_key = None
+    min_distance = float('inf')
+
+    for key in self.key2id.keys():
+        distance = Levenshtein.distance(predicted_key, key)
+        if distance < min_distance:
+            min_distance = distance
+            closest_key = key
+
+    return closest_key, min_distance
+  
+  def find_clue_with_max_freq(self):
+     return max(set(self.list_curr_clue), key=self.list_curr_clue.count)
+  
+  # Get rid of the randomly generated character plus space in between if clue has more than 12 characters
+  def purify_clue(self, clue):
+     if len(clue) > 12:
+        return clue
+     else:
+        return clue[2:]
 
   def callback(self,data):
     try:
       cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-      clue_board = cb.identify_clue(cv_image, self.model)
+      clue_board, predicted_key, predicted_val = cb.identify_clue(cv_image, self.model)
+      if predicted_key != None and predicted_val != None:
+        predicted_key = predicted_key.replace(' ', '')
+        # print(predicted_key + predicted_val)
+        # Check if predicted_key is in self.key2id, if not, find the closest key
+        if predicted_key not in self.key2id:
+            corrected_key, min_distance = self.find_closest_key(predicted_key)
+            # If predicted key is too far off don't do anything
+            if min_distance >= 3:
+               return
+            # rospy.loginfo(f"Corrected key: {corrected_key} from predicted key: {predicted_key}")
+            predicted_key = corrected_key
+        # If prev_clue_type is the same as current clue type, then we keep on collecting clues
+        # If this is the very first clue we see then we also simply append
+        if self.prev_clue_type == predicted_key or self.prev_clue_type == None:
+           self.list_curr_clue.append(predicted_val)
+        # Otherwise we know we have moved on and we start to analyze the next clue
+        else:
+           # We also publish the old clue here
+           clue = self.find_clue_with_max_freq()
+           print('Total of ' + str(len(self.prev_clue_type)) + ' used')
+          #  print(self.prev_clue_type + ', ' + clue + ' published!')
+           location_id = self.key2id[self.prev_clue_type]
+          #  actual_clue = self.purify_clue(clue)
+           msg2pub = str('MUD_AI,' + '12345,' + location_id + ',' + clue)
+           # Only publish if we haven't published this clue before
+           if self.prev_clue_type not in self.published_clue_type_history:
+              print(msg2pub)
+              self.score_tracker.publish(msg2pub)
+           self.published_clue_type_history.append(self.prev_clue_type)
+           self.list_curr_clue = []
+           self.list_curr_clue.append(predicted_val)
+        # Need to update the clue type in every iteration
+        self.prev_clue_type = predicted_key
+        # Convert key to ID
+        self.id = self.key2id[predicted_key]
       # print(clue_board)
       # Convert the processed image back to a ROS image message
       ros_image = self.bridge.cv2_to_imgmsg(clue_board, "bgr8")
