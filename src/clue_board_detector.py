@@ -103,6 +103,12 @@ class clue_board_detector:
             predicted_key = corrected_key
         # If the robot is at the last clue board, collect some images and publish right away
         if predicted_key == 'BANDIT':
+            # First we publish the last clue
+            clue = self.find_clue_with_max_freq()
+            location_id = self.key2id[self.prev_clue_type]
+            msg2pub = str('MUD_AI,' + '12345,' + location_id + ',' + clue)
+            self.score_tracker.publish(msg2pub)
+
             self.last_clue_count += 1
             # we want to first collect 10 images before we publish anything
             if self.last_clue_count < 10:
