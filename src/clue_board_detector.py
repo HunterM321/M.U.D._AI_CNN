@@ -54,6 +54,9 @@ class clue_board_detector:
     self.list_curr_clue = []
     # History of clue types published
     self.published_clue_type_history = []
+    # History of last clue board
+    self.last_clue_history = []
+    self.last_clue_count = 0
 
     # self.rate = rospy.Rate(2)
 
@@ -72,6 +75,9 @@ class clue_board_detector:
   
   def find_clue_with_max_freq(self):
      return max(set(self.list_curr_clue), key=self.list_curr_clue.count)
+  
+  def find_clue_with_max_freq_last(self):
+     return max(set(self.last_clue_history), key=self.last_clue_history.count)
   
   # Get rid of the randomly generated character plus space in between if clue has more than 12 characters
   def purify_clue(self, clue):
@@ -95,6 +101,19 @@ class clue_board_detector:
                return
             # rospy.loginfo(f"Corrected key: {corrected_key} from predicted key: {predicted_key}")
             predicted_key = corrected_key
+        # If the robot is at the last clue board, collect some images and publish right away
+        if predicted_key == 'BANDIT':
+            self.last_clue_count += 1
+            # we want to first collect 10 images before we publish anything
+            if self.last_clue_count < 10:
+               self.last_clue_history.append(predicted_val)
+            # Once we have enough images, we are confident enough to publish
+            elif self.last_clue_count == 10:
+               clue = self.find_clue_with_max_freq_last()
+               location_id = self.key2id[predicted_key]
+               msg2pub = str('MUD_AI,' + '12345,' + location_id + ',' + clue)
+               self.score_tracker.publish(msg2pub)
+               return
         # If prev_clue_type is the same as current clue type, then we keep on collecting clues
         # If this is the very first clue we see then we also simply append
         if self.prev_clue_type == predicted_key or self.prev_clue_type == None:
