@@ -108,11 +108,13 @@ class clue_board_detector:
             if self.last_clue_count < 10:
                self.last_clue_history.append(predicted_val)
             # Once we have enough images, we are confident enough to publish
-            elif self.last_clue_count == 10:
+            elif self.last_clue_count == 5:
                clue = self.find_clue_with_max_freq_last()
                location_id = self.key2id[predicted_key]
-               msg2pub = str('MUD_AI,' + '12345,' + location_id + ',' + clue)
+               msg2pub = str('03,' + 'IAmHuntersDad,' + location_id + ',' + clue)
                self.score_tracker.publish(msg2pub)
+               end_tmr_msg = "03,IAmHuntersDad,-1, NA"
+               self.score_tracker.publish(end_tmr_msg)
                return
         # If prev_clue_type is the same as current clue type, then we keep on collecting clues
         # If this is the very first clue we see then we also simply append
@@ -126,7 +128,7 @@ class clue_board_detector:
           #  print(self.prev_clue_type + ', ' + clue + ' published!')
            location_id = self.key2id[self.prev_clue_type]
           #  actual_clue = self.purify_clue(clue)
-           msg2pub = str('MUD_AI,' + '12345,' + location_id + ',' + clue)
+           msg2pub = str('03,' + 'IAmHuntersDad,' + location_id + ',' + clue)
            # Only publish if we haven't published this clue before
            if self.prev_clue_type not in self.published_clue_type_history:
               print(msg2pub)
